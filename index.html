@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recadinho">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#FFF8F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E1820" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<title>Recadinho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap">
+<style>
+/* Uma tela só, como um app: cabeçalho, conversa que rola, caixa de escrever presa embaixo.
+   Paleta e fonte iguais às da tela do Presto (DESIGN.md do porta-recado). */
+:root {
+  --bg: #FFF8F2;          /* CREME do Presto */
+  --fg: #3A2E39;          /* TINTA */
+  --muted: #6C6068;       /* CINZA (5,7 de contraste no creme) */
+  --rosa: #E25684;        /* só formas: coração, anel de foco */
+  --rosa-texto: #B83462;  /* texto rosa (5,4 no creme) */
+  --botao: #B83462;       /* fundo do Enviar: branco por cima dá 5,4 */
+  --rosa-claro: #F4C4D4;
+  --balao: #F9DDE6;       /* balão do recado dela */
+  --superficie: #FFFFFF;
+  --linha: #EADCD9;
+  --erro: #A32A2A;
+  --fonte: "Poppins", ui-rounded, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1E1820; --fg: #F4EDF1; --muted: #B5A8B0; --rosa: #E25684; --rosa-texto: #F4A3BE; --botao: #B83462;
+    --rosa-claro: #5A2E40; --balao: #43293A; --superficie: #2A222D; --linha: #3B3040; --erro: #FF9C9C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1E1820; --fg: #F4EDF1; --muted: #B5A8B0; --rosa: #E25684; --rosa-texto: #F4A3BE; --botao: #B83462;
+  --rosa-claro: #5A2E40; --balao: #43293A; --superficie: #2A222D; --linha: #3B3040; --erro: #FF9C9C;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--fonte); font-size: 16px; line-height: 1.45;
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+button, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--rosa); outline-offset: 2px; }
+
+.app {
+  height: 100dvh; display: flex; flex-direction: column; max-width: 560px; margin: 0 auto;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.topo {
+  padding-block: 14px 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px;
+  border-bottom: 1px solid var(--linha);
+}
+.topo h1 { margin: 0; font-size: 1.35rem; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.topo h1 span { color: var(--rosa-texto); }
+.topo .visto-ult { font-size: 0.8rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.conversa {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px;
+  padding-block: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.vazio { margin: auto; text-align: center; color: var(--muted); max-width: 30ch; font-size: 0.95rem; }
+.vazio strong { display: block; color: var(--fg); font-weight: 600; margin-bottom: 4px; }
+.dia { align-self: center; font-size: 0.75rem; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.recado { align-self: flex-end; max-width: 82%; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.recado.outro { align-self: flex-start; align-items: flex-start; }
+.rotulo { font-size: 0.75rem; color: var(--muted); }
+.balao {
+  background: var(--balao); border-radius: 18px 18px 4px 18px; padding: 9px 13px; white-space: pre-wrap;
+  overflow-wrap: anywhere; min-width: 0;
+}
+.outro .balao { background: var(--superficie); border: 1px solid var(--linha); border-radius: 18px 18px 18px 4px; }
+.balao img { display: block; max-width: 100%; border-radius: 12px; margin-bottom: 6px; }
+.balao .expirou { font-size: 0.85rem; color: var(--muted); }
+.meta { font-size: 0.75rem; color: var(--muted); display: flex; gap: 6px; align-items: center; font-variant-numeric: tabular-nums; }
+.meta .viu { color: var(--rosa-texto); font-weight: 500; }
+.meta .viu svg { width: 12px; height: 12px; vertical-align: -1px; fill: var(--rosa); }
+.recado.enviando .balao { opacity: 0.6; }
+
+.compor {
+  border-top: 1px solid var(--linha); background: var(--bg); display: flex; flex-direction: column; gap: 8px;
+  padding-block: 10px max(12px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.atalhos { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.atalhos::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--linha);
+  background: var(--superficie); cursor: pointer; font-size: 0.9rem;
+}
+.chip:active { background: var(--rosa-claro); }
+.previa {
+  display: flex; align-items: center; gap: 10px; background: var(--superficie); border: 1px solid var(--linha);
+  border-radius: 14px; padding: 8px;
+}
+.previa img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; flex: none; background: var(--linha); }
+.previa .info { flex: 1; min-width: 0; font-size: 0.85rem; color: var(--muted); }
+.previa .info strong { display: block; color: var(--fg); font-weight: 500; }
+.linha-escrever { display: flex; gap: 8px; align-items: flex-end; }
+textarea {
+  flex: 1; min-width: 0; resize: none; min-height: 44px; max-height: 40vh; padding: 10px 14px; border-radius: 22px;
+  border: 1px solid var(--linha); background: var(--superficie); line-height: 1.4; font-size: 16px;
+  overflow-y: hidden;
+}
+textarea::placeholder { color: var(--muted); }
+.botao-foto, .enviar {
+  flex: none; height: 44px; border-radius: 22px; border: 0; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; gap: 6px; font-weight: 500;
+}
+.botao-foto { width: 44px; background: var(--superficie); border: 1px solid var(--linha); position: relative; }
+.botao-foto:has(input:focus-visible) { outline: 3px solid var(--rosa); outline-offset: 2px; }
+.botao-foto svg { width: 22px; height: 22px; fill: none; stroke: var(--fg); stroke-width: 1.8; }
+.botao-foto input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.enviar { padding: 0 18px; background: var(--botao); color: #FFFFFF; }
+.enviar:disabled { opacity: 0.55; cursor: default; }
+.botao-texto {
+  border: 0; background: none; color: var(--rosa-texto); font-weight: 500; cursor: pointer; padding: 0 8px;
+  min-width: 44px; min-height: 44px;
+}
+.dica { font-size: 0.8rem; color: var(--muted); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 0.9rem; max-width: calc(100% - 32px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); z-index: 20;
+}
+.toast.erro { background: var(--erro); color: var(--bg); }
+.toast.fora { opacity: 0; pointer-events: none; transform: translate(-50%, 6px); }
+.sem-canal { margin: auto; padding: 24px; text-align: center; max-width: 34ch; }
+.sem-canal h2 { font-size: 1.1rem; margin: 0 0 6px; font-weight: 600; }
+.sem-canal p { margin: 0; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .toast { transition: opacity 0.18s ease-out, transform 0.18s ease-out; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="topo">
+    <h1>Recadinho <span>pro Zizinho</span></h1>
+    <div class="visto-ult" id="visto-ult"></div>
+  </header>
+
+  <section class="sem-canal" id="sem-canal" hidden>
+    <h2>Falta o link certo</h2>
+    <p>Abra o Recadinho pelo link que o Zizinho te mandou. É ele que diz pra qual tela o recado vai.</p>
+  </section>
+
+  <section class="conversa" id="conversa" aria-label="Recados das últimas 12 horas">
+    <div class="vazio" id="vazio"></div>
+  </section>
+
+  <form class="compor" id="form" autocomplete="off">
+    <div class="dica" id="dica-tela" hidden>
+      <span>Dica: Compartilhar › Adicionar à Tela de Início, e o Recadinho vira um app.</span>
+      <button type="button" class="botao-texto" id="fechar-dica">Ok</button>
+    </div>
+    <div class="previa" id="previa" hidden>
+      <img id="previa-img" alt="Foto escolhida">
+      <div class="info"><strong id="previa-titulo">Preparando a foto...</strong><span id="previa-det"></span></div>
+      <button type="button" class="botao-texto" id="tirar-foto">Tirar</button>
+    </div>
+    <div class="atalhos" role="group" aria-label="Atalhos">
+      <button type="button" class="chip" data-txt="💗">💗</button>
+      <button type="button" class="chip" data-txt="Te amo">Te amo</button>
+      <button type="button" class="chip" data-txt="Saudade">Saudade</button>
+      <button type="button" class="chip" data-txt="Bom dia">Bom dia</button>
+      <button type="button" class="chip" data-txt="Boa noite">Boa noite</button>
+    </div>
+    <div class="linha-escrever">
+      <label class="botao-foto" title="Mandar foto">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="3.6"/><path d="M8.5 6l1.4-2.2h4.2L15.5 6"/></svg>
+        <input id="foto" type="file" accept="image/*" aria-label="Mandar foto">
+      </label>
+      <textarea id="texto" rows="1" placeholder="Escreve pro Zizinho..." aria-label="Recado"></textarea>
+      <button type="submit" class="enviar" id="enviar">Enviar</button>
+    </div>
+  </form>
+  <div class="toast fora" id="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const NTFY = "https://ntfy.sh/";
+  const LADO_MAX = 960;              // o Presto mostra a foto em 480 px: 960 dá folga e fica leve
+  const LIMITE_FOTO = 1900 * 1024;   // ntfy.sh grátis recusa anexo acima de 2 MB
+  const LIMITE_TEXTO = 16000;        // o Presto lê carta até 16 KB (acima de 4 KB o ntfy vira anexo)
+  const LIMITE_LEGENDA_URL = 6000;   // a legenda da foto vai na URL, e o ntfy.sh corta URL comprida
+  const CONSULTA_MS = 8000;
+  const TAG = "recadinho";           // marca o que saiu daqui; o resto do canal aparece à parte
+  const FUNDO_FOTO = "#FFF8F2";      // PNG com transparência ganha fundo creme, não preto
+
+  const $ = (id) => document.getElementById(id);
+  const guardar = {
+    ler(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    pôr(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: segue */ } },
+  };
+
+  // ---- canal: vem depois do # no link ("…/#<canal>"); fica guardado pro app da Tela de Início
+  const valido = (t) => /^[A-Za-z0-9_-]{8,64}$/.test(t || "");
+  let topico = "";
+  try { topico = decodeURIComponent(location.hash.slice(1)); } catch (e) { topico = ""; }
+  if (valido(topico)) guardar.pôr("recadinho.topico", topico);
+  else topico = guardar.ler("recadinho.topico");
+  if (!valido(topico)) {
+    $("sem-canal").hidden = false; $("conversa").hidden = true; $("form").hidden = true;
+    return;
+  }
+  const URL_CANAL = NTFY + encodeURIComponent(topico);
+
+  // ---- estado
+  const msgs = new Map();     // id -> mensagem do ntfy
+  let ultimoId = null;
+  let foto = null;            // {blob, w, h}
+  let geracao = 0;            // foto escolhida por cima de outra que ainda preparava descarta a velha
+  let enviando = false;
+  let carga = "buscando";     // buscando | ok | offline
+  let vistosConhecidos = -1;  // pra avisar "ele viu" só do visto que chega com a página aberta
+
+  // ---- toast de consequência (fica sempre na árvore pra o leitor de tela anunciar)
+  let toastTimer = 0;
+  function avisar(texto, erro) {
+    const t = $("toast");
+    t.textContent = texto;
+    t.className = "toast" + (erro ? " erro" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = "toast fora" + (erro ? " erro" : ""); }, erro ? 6000 : 3500);
+  }
+
+  // ---- leitura das mensagens
+  const hora = (s) => new Date(s * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const diaTxt = (s) => {
+    const d = new Date(s * 1000), hoje = new Date();
+    const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+    if (d.toDateString() === hoje.toDateString()) return "Hoje";
+    if (d.toDateString() === ontem.toDateString()) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  };
+  const coracao = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.2 0 3.7 1.2 5.2 3 1.5-1.8 3-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>';
+  const daNtfy = (u) => typeof u === "string" && u.startsWith(NTFY + "file/");
+  const ehVisto = (m) => (m.tags || []).includes("presto");
+  const ehDela = (m) => !!m.local || (m.tags || []).includes(TAG);
+  const ehFoto = (m) => !!(m.attachment && (m.attachment.type || "").startsWith("image/"));
+  const ehCarta = (m) => !!(m.attachment && m.attachment.name === "attachment.txt"
+    && (m.attachment.type || "").startsWith("text/") && daNtfy(m.attachment.url));
+  const textoDe = (m) => {
+    if (m.textoLocal) return m.textoLocal;
+    const t = m.message || "";
+    return m.attachment && t.startsWith("You received a file") ? "" : t;
+  };
+  // compara sem acento, emoji e pontuação: o Presto limpa o texto antes de citar
+  const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+  // Cada visto do Presto cita o recado ('Zizinho viu: "Oi..."'), ou diz "viu sua foto",
+  // ou "viu seu recado" (recado só de emoji). Visto que não acha o recado fica sem coração:
+  // melhor nenhum coração do que coração no recado errado.
+  function casarVistos(recados, vistos) {
+    const vistoDe = new Map();
+    for (const v of vistos) {
+      const txt = v.message || "";
+      const q = /viu: "(.*)"\s*$/.exec(txt);
+      const quer = q ? norm(q[1].replace(/\.\.\.$/, "")).slice(0, 24) : "";
+      const livres = recados.filter((m) => m.time <= v.time && !vistoDe.has(m.id));
+      let alvo;
+      if (quer) alvo = livres.find((m) => norm(textoDe(m)).startsWith(quer)) || livres.find((m) => ehCarta(m) && !textoDe(m));
+      else if (/viu sua foto/.test(txt)) alvo = livres.find(ehFoto);
+      else alvo = livres.find((m) => !norm(textoDe(m)) || ehFoto(m));
+      if (alvo) vistoDe.set(alvo.id, v.time);
+    }
+    return vistoDe;
+  }
+
+  // ---- conversa
+  const vazio = $("vazio");
+  function preencherVazio() {
+    if (carga === "buscando") vazio.innerHTML = "<strong>Buscando os recados...</strong>";
+    else if (carga === "offline") vazio.innerHTML = "<strong>Sem conexão agora</strong>Os recados aparecem quando a internet voltar.";
+    else vazio.innerHTML = "<strong>Nada por aqui ainda</strong>Os recados das últimas 12 horas aparecem aqui, com um coração quando ele vê.";
+  }
+
+  function desenhar(forcar) {
+    const c = $("conversa");
+    // só puxa pro fim quem já estava no fim (ou acabou de enviar): ler um recado antigo não é interrompido
+    const grudado = forcar || c.scrollHeight - c.scrollTop - c.clientHeight < 80;
+    const todas = [...msgs.values()].sort((a, b) => a.time - b.time || (a.id < b.id ? -1 : 1));
+    const vistos = todas.filter(ehVisto);
+    const recados = todas.filter((m) => !ehVisto(m));
+    const vistoDe = casarVistos(recados, vistos);
+    c.replaceChildren();
+    if (!recados.length) { preencherVazio(); c.append(vazio); }
+    let diaAnterior = "";
+    for (const m of recados) {
+      const d = diaTxt(m.time);
+      if (d !== diaAnterior) {
+        const el = document.createElement("div"); el.className = "dia"; el.textContent = d; c.append(el); diaAnterior = d;
+      }
+      const minha = ehDela(m);
+      const r = document.createElement("div");
+      r.className = "recado" + (minha ? "" : " outro") + (m.enviando ? " enviando" : "");
+      if (!minha) {
+        const rot = document.createElement("div"); rot.className = "rotulo";
+        rot.textContent = m.title || "Outro recado no canal";
+        r.append(rot);
+      }
+      const b = document.createElement("div"); b.className = "balao";
+      const a = m.attachment;
+      if (ehFoto(m) && (m.previa || daNtfy(a.url))) {
+        if (m.previa || !a.expires || a.expires * 1000 > Date.now()) {
+          const img = document.createElement("img"); img.alt = "Foto enviada";
+          img.addEventListener("load", () => { if (grudado) c.scrollTop = c.scrollHeight; }, { once: true });
+          img.src = m.previa || a.url;
+          b.append(img);
+        } else {
+          const e = document.createElement("div"); e.className = "expirou";
+          e.textContent = "Foto (já saiu do ar depois de 3 horas)"; b.append(e);
+        }
+      }
+      const texto = textoDe(m);
+      if (texto) b.append(document.createTextNode(texto));
+      else if (ehCarta(m)) {
+        // carta acima de 4 KB: o ntfy guarda como anexo de texto, que vale 3 horas
+        const e = document.createElement("div"); e.className = "expirou";
+        const vivo = !a.expires || a.expires * 1000 > Date.now();
+        e.textContent = vivo ? "Carta longa (carregando...)" : "Carta longa (o texto já saiu do ar, mas chegou inteiro na tela dele)";
+        b.append(e);
+        if (vivo && !m.buscandoCarta) {
+          m.buscandoCarta = true;
+          fetch(a.url).then((x) => (x.ok ? x.text() : null)).then((t) => { if (t) { m.textoLocal = t; desenhar(); } }).catch(() => {});
+        }
+      }
+      if (!b.childNodes.length) b.textContent = "(recado vazio)";
+      const meta = document.createElement("div"); meta.className = "meta";
+      if (m.enviando) meta.textContent = "enviando...";
+      else if (vistoDe.has(m.id)) meta.innerHTML = "<span>" + hora(m.time) + '</span><span class="viu">' + coracao + " ele viu às " + hora(vistoDe.get(m.id)) + "</span>";
+      else meta.innerHTML = "<span>" + hora(m.time) + "</span>" + (minha ? "<span>· enviado</span>" : "");
+      r.append(b, meta); c.append(r);
+    }
+    const ult = vistos[vistos.length - 1];
+    $("visto-ult").textContent = carga === "offline" ? "sem internet"
+      : ult ? "último visto " + (diaTxt(ult.time) === "Hoje" ? "às " + hora(ult.time) : diaTxt(ult.time)) : "";
+    if (grudado) c.scrollTop = c.scrollHeight;
+  }
+
+  function semConexao() {
+    if (carga !== "offline") { carga = "offline"; desenhar(); }
+  }
+
+  async function buscar(mesmoEscondida) {
+    if (document.hidden && !mesmoEscondida) return;
+    let corpo;
+    try {
+      const r = await fetch(URL_CANAL + "/json?poll=1&since=" + (ultimoId || "12h"), { cache: "no-store" });
+      if (!r.ok) { semConexao(); return; }
+      corpo = await r.text();
+    } catch (e) { semConexao(); return; }
+    let mudou = carga !== "ok";
+    carga = "ok";
+    for (const l of corpo.split("\n")) {
+      if (!l.trim()) continue;
+      let m; try { m = JSON.parse(l); } catch (e) { continue; }
+      if (m.event !== "message" || !m.id) continue;
+      if (!msgs.has(m.id)) { msgs.set(m.id, m); mudou = true; }
+      ultimoId = m.id;
+    }
+    const vistos = [...msgs.values()].filter(ehVisto);
+    if (vistosConhecidos >= 0 && vistos.length > vistosConhecidos) {
+      const ult = vistos.reduce((a, b) => (b.time > a.time ? b : a));
+      avisar("Ele viu seu recado às " + hora(ult.time));
+    }
+    vistosConhecidos = vistos.length;
+    if (mudou) desenhar();
+  }
+
+  // ---- foto: reduz no próprio celular. O <img> já aplica a rotação do iPhone e o Safari abre
+  // HEIC; o canvas devolve JPEG simples, sem a tag de rotação, que é o que o Presto entende.
+  async function reduzir(arquivo) {
+    const url = URL.createObjectURL(arquivo);
+    try {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+      await img.decode();
+      const w0 = img.naturalWidth, h0 = img.naturalHeight;
+      const s = Math.min(1, LADO_MAX / Math.max(w0, h0));
+      const w = Math.max(1, Math.round(w0 * s)), h = Math.max(1, Math.round(h0 * s));
+      // reduz pela metade enquanto der: num passo só, de 4032 pra 960, a foto serrilha
+      let fonte = img, fw = w0, fh = h0;
+      while (fw / 2 >= w * 1.4) {
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(fw / 2); cv.height = Math.round(fh / 2);
+        const cx = cv.getContext("2d"); cx.imageSmoothingQuality = "high";
+        cx.drawImage(fonte, 0, 0, cv.width, cv.height);
+        fonte = cv; fw = cv.width; fh = cv.height;
+      }
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext("2d"); cx.imageSmoothingQuality = "high";
+      cx.fillStyle = FUNDO_FOTO; cx.fillRect(0, 0, w, h);
+      cx.drawImage(fonte, 0, 0, w, h);
+      let q = 0.85, blob = null;
+      do {
+        blob = await new Promise((ok) => cv.toBlob(ok, "image/jpeg", q));
+        q -= 0.12;
+      } while (blob && blob.size > LIMITE_FOTO && q > 0.3);
+      if (!blob) throw new Error("toBlob");
+      return { blob, w, h };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function limparFoto() {
+    geracao++;
+    foto = null;
+    $("previa").hidden = true;
+    const old = $("previa-img").src; if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+    $("previa-img").removeAttribute("src");
+    $("foto").value = "";
+    atualizarBotao();
+  }
+
+  $("foto").addEventListener("change", async (ev) => {
+    const arq = ev.target.files && ev.target.files[0];
+    if (!arq) return;
+    const g = ++geracao;
+    $("previa").hidden = false;
+    $("previa-titulo").textContent = "Preparando a foto...";
+    $("previa-det").textContent = "";
+    $("previa-img").removeAttribute("src");
+    foto = null; atualizarBotao();
+    try {
+      const r = await reduzir(arq);
+      if (g !== geracao) return;   // ela tirou ou trocou a foto enquanto esta preparava
+      foto = r;
+      $("previa-img").src = URL.createObjectURL(r.blob);
+      $("previa-titulo").textContent = "Foto pronta";
+      $("previa-det").textContent = r.w + " × " + r.h + " · " + Math.max(1, Math.round(r.blob.size / 1024)) + " KB";
+    } catch (e) {
+      if (g !== geracao) return;
+      limparFoto();
+      avisar("Essa foto não abriu aqui. Tenta outra.", true);
+    }
+    atualizarBotao();
+  });
+  $("tirar-foto").addEventListener("click", limparFoto);
+
+  // ---- escrever
+  const texto = $("texto");
+  const rascunho = guardar.ler("recadinho.rascunho");
+  if (rascunho) texto.value = rascunho;
+  function crescer() {
+    texto.style.height = "auto";
+    const max = innerHeight * 0.4;
+    texto.style.height = Math.min(texto.scrollHeight + 2, max) + "px";
+    texto.style.overflowY = texto.scrollHeight + 2 > max ? "auto" : "hidden";
+  }
+  function atualizarBotao() {
+    const preparando = !$("previa").hidden && !foto;
+    $("enviar").disabled = enviando || preparando || (!texto.value.trim() && !foto);
+  }
+  texto.addEventListener("input", () => { crescer(); guardar.pôr("recadinho.rascunho", texto.value); atualizarBotao(); });
+  texto.addEventListener("keydown", (e) => {
+    // Enter quebra linha; Ctrl/Cmd+Enter envia no computador
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $("form").requestSubmit(); }
+  });
+  document.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
+    const t = b.dataset.txt;
+    texto.value = texto.value.trim() ? texto.value.replace(/\s*$/, " ") + t : t;
+    texto.dispatchEvent(new Event("input")); texto.focus();
+  }));
+
+  // ---- enviar
+  function motivo(status, codigo) {
+    if (codigo === 41301) return "O canal grátis encheu de fotos por agora. Manda só texto; libera em até 3 horas.";
+    if (status === 413) return "A foto ficou grande demais pro canal. Tenta outra.";
+    if (codigo === 42905 || codigo === 42908) return "Acabou a cota de recados de hoje do canal grátis. Amanhã volta.";
+    if (status === 429) return "Muitos recados seguidos. Espera um minutinho e manda de novo.";
+    return "O recado não foi (erro " + status + "). Tenta de novo.";
+  }
+
+  $("form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const bruto = texto.value, msg = bruto.trim(), fotoEnviada = foto;
+    if (enviando || (!msg && !fotoEnviada)) return;
+    if (new TextEncoder().encode(msg).length > LIMITE_TEXTO) {
+      avisar("Recado comprido demais pra tela. Divide em dois.", true);
+      return;
+    }
+    if (fotoEnviada && encodeURIComponent(msg).length > LIMITE_LEGENDA_URL) {
+      avisar("Legenda comprida pra ir junto da foto. Manda uma frase curta com a foto e a carta em outro recado.", true);
+      return;
+    }
+    enviando = true; atualizarBotao();
+    $("enviar").textContent = "Enviando...";
+    const temp = { id: "local-" + Date.now(), time: Math.floor(Date.now() / 1000), message: msg, enviando: true, local: true, tags: [TAG] };
+    if (fotoEnviada) { temp.attachment = { type: "image/jpeg" }; temp.previa = $("previa-img").src; }
+    msgs.set(temp.id, temp); desenhar(true);
+
+    // Só limpa o que foi enviado: o que ela escreveu ou escolheu durante o "Enviando..." fica
+    const concluir = () => {
+      if (texto.value === bruto) texto.value = "";
+      else if (texto.value.startsWith(bruto)) texto.value = texto.value.slice(bruto.length).trimStart();
+      guardar.pôr("recadinho.rascunho", texto.value); crescer();
+      if (foto && foto === fotoEnviada) {
+        geracao++; foto = null; $("previa").hidden = true; $("foto").value = "";   // sem revogar: o balão usa a prévia
+      }
+    };
+    try {
+      let r;
+      try {
+        if (fotoEnviada) {
+          // POST com o corpo cru não pede preflight de CORS: um 429 chega como 429, não como "sem internet"
+          const q = "?filename=foto.jpg&tags=" + TAG + (msg ? "&message=" + encodeURIComponent(msg) : "");
+          r = await fetch(URL_CANAL + q, { method: "POST", body: await fotoEnviada.blob.arrayBuffer() });
+        } else {
+          r = await fetch(URL_CANAL + "?tags=" + TAG, { method: "POST", body: msg });
+        }
+      } catch (e) {
+        // a rede caiu na volta: o recado pode ter chegado mesmo assim, então confere antes de dizer que não foi
+        // (o ntfy leva cerca de 1 s pra mostrar a mensagem nova na consulta, então tenta três vezes)
+        msgs.delete(temp.id);
+        const chegou = () => [...msgs.values()].some((m) => !m.local && !ehVisto(m) && ehDela(m)
+          && m.time >= temp.time - 5 && textoDe(m) === msg && ehFoto(m) === !!fotoEnviada);
+        let foi = false;
+        for (let i = 0; i < 3 && !foi; i++) {
+          await new Promise((ok) => setTimeout(ok, 1200));
+          await buscar(true);
+          foi = chegou();
+        }
+        if (foi) { concluir(); desenhar(true); avisar("Enviado · se a telinha estiver ligada, aparece em até 20 segundos"); }
+        else { desenhar(); avisar("Não deu pra confirmar o envio. Confere a conversa antes de mandar de novo.", true); }
+        return;
+      }
+      msgs.delete(temp.id);
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        desenhar(); avisar(motivo(r.status, j.code), true);
+        return;
+      }
+      const m = await r.json().catch(() => null);
+      if (m && m.id) {
+        if (temp.previa) m.previa = temp.previa;
+        if (ehCarta(m)) m.textoLocal = msg;
+        msgs.set(m.id, m);
+      }
+      concluir(); desenhar(true);
+      avisar("Enviado · se a telinha estiver ligada, aparece em até 20 segundos");
+    } finally {
+      enviando = false; $("enviar").textContent = "Enviar"; atualizarBotao();
+      requestAnimationFrame(crescer);
+    }
+  });
+
+  // ---- dica de Tela de Início (só no Safari do iPhone, fora do modo app)
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (ios && !navigator.standalone && guardar.ler("recadinho.dica") !== "ok") $("dica-tela").hidden = false;
+  $("fechar-dica").addEventListener("click", () => { $("dica-tela").hidden = true; guardar.pôr("recadinho.dica", "ok"); });
+
+  crescer(); atualizarBotao(); desenhar();
+  buscar();
+  setInterval(buscar, CONSULTA_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) buscar(); });
+
+  // ganchos de teste (o navegador de teste não abre o seletor de fotos)
+  window.__recadinho = { reduzir, estado: () => ({ topico, mensagens: msgs.size, foto: !!foto, carga }) };
+})();
+</script>
+</body>
+</html>
