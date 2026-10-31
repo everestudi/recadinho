@@ -94,6 +94,12 @@ button, textarea, input { font: inherit; color: inherit; }
 .meta .viu { color: var(--rosa-texto); font-weight: 500; }
 .meta .viu svg { width: 12px; height: 12px; vertical-align: -1px; fill: var(--rosa); }
 .recado.enviando .balao { opacity: 0.6; }
+/* carinho (dela) e coração (dele): uma linha pequena, sem balão, do lado de quem mandou */
+.gesto { align-self: flex-end; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gesto.dele { align-self: flex-start; color: var(--rosa-texto); font-weight: 500; }
+.gesto svg { width: 16px; height: 16px; fill: var(--rosa); flex: none; }
+.gesto.enviando { opacity: 0.6; }
+.gesto .hora { color: var(--muted); font-weight: 400; }
 
 .compor {
   border-top: 1px solid var(--linha); background: var(--bg); display: flex; flex-direction: column; gap: 8px;
@@ -126,6 +132,14 @@ textarea::placeholder { color: var(--muted); }
   justify-content: center; gap: 6px; font-weight: 500;
 }
 .botao-foto { width: 44px; background: var(--superficie); border: 1px solid var(--linha); position: relative; }
+.carinho {
+  flex: none; min-height: 44px; padding: 0 16px 0 12px; border-radius: 22px; border: 1px solid var(--rosa-claro);
+  background: var(--balao); color: var(--rosa-texto); font-weight: 500; font-size: 0.9rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.carinho svg { width: 18px; height: 18px; fill: var(--rosa); flex: none; }
+.carinho:active { background: var(--rosa-claro); }
+.carinho:disabled { opacity: 0.55; cursor: default; }
 .botao-foto:has(input:focus-visible) { outline: 3px solid var(--rosa); outline-offset: 2px; }
 .botao-foto svg { width: 22px; height: 22px; fill: none; stroke: var(--fg); stroke-width: 1.8; }
 .botao-foto input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
@@ -179,7 +193,11 @@ textarea::placeholder { color: var(--muted); }
       <button type="button" class="botao-texto" id="tirar-foto">Tirar</button>
     </div>
     <div class="atalhos" role="group" aria-label="Atalhos">
-      <button type="button" class="chip" data-txt="💗">💗</button>
+      <!-- sai na hora, sem texto: os outros atalhos só escrevem no campo -->
+      <button type="button" class="carinho" id="carinho" aria-label="Pensando em você: acende a luz dele">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.2 0 3.7 1.2 5.2 3 1.5-1.8 3-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>
+        <span>Pensando em você</span>
+      </button>
       <button type="button" class="chip" data-txt="Te amo">Te amo</button>
       <button type="button" class="chip" data-txt="Saudade">Saudade</button>
       <button type="button" class="chip" data-txt="Bom dia">Bom dia</button>
@@ -207,6 +225,9 @@ textarea::placeholder { color: var(--muted); }
   const LIMITE_LEGENDA_URL = 6000;   // a legenda da foto vai na URL, e o ntfy.sh corta URL comprida
   const CONSULTA_MS = 8000;
   const TAG = "recadinho";           // marca o que saiu daqui; o resto do canal aparece à parte
+  const CARINHO = "carinho";         // "Pensando em você": acende os LEDs dele, não pede visto
+  const CORPO_CARINHO = "Zizinha pensou em você";
+  const CARINHO_MS = 10000;          // um carinho a cada 10 s, igual ao limite do coração dele
   const FUNDO_FOTO = "#FFF8F2";      // PNG com transparência ganha fundo creme, não preto
 
   const $ = (id) => document.getElementById(id);
@@ -234,7 +255,9 @@ textarea::placeholder { color: var(--muted); }
   let geracao = 0;            // foto escolhida por cima de outra que ainda preparava descarta a velha
   let enviando = false;
   let carga = "buscando";     // buscando | ok | offline
-  let vistosConhecidos = -1;  // pra avisar "ele viu" só do visto que chega com a página aberta
+  let conhecidos = null;      // ids da primeira carga: o aviso é só do que chega com a página aberta
+  let enviandoCarinho = false;
+  let ultimoCarinho = 0;
 
   // ---- toast de consequência (fica sempre na árvore pra o leitor de tela anunciar)
   let toastTimer = 0;
@@ -257,8 +280,23 @@ textarea::placeholder { color: var(--muted); }
   };
   const coracao = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.2 0 3.7 1.2 5.2 3 1.5-1.8 3-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>';
   const daNtfy = (u) => typeof u === "string" && u.startsWith(NTFY + "file/");
-  const ehVisto = (m) => (m.tags || []).includes("presto");
-  const ehDela = (m) => !!m.local || (m.tags || []).includes(TAG);
+  // O que sai do Presto leva a tag "presto": visto (presto,heart), coração (presto,coracao)
+  // e resposta pronta (presto,resposta). Carinho dela leva recadinho,carinho.
+  const tem = (m, t) => (m.tags || []).includes(t);
+  const ehCoracao = (m) => tem(m, "presto") && tem(m, "coracao");
+  const ehResposta = (m) => tem(m, "presto") && tem(m, "resposta");
+  const ehVisto = (m) => tem(m, "presto") && !tem(m, "coracao") && !tem(m, "resposta");
+  const ehCarinho = (m) => tem(m, TAG) && tem(m, CARINHO);
+  const ehGesto = (m) => ehCarinho(m) || ehCoracao(m) || ehResposta(m);
+  const ehDela = (m) => !!m.local || tem(m, TAG);
+  // resposta: 'Zizinho respondeu: Saudade', e na linha de baixo o começo do recado entre aspas
+  const resposta = (m) => {
+    const [l1, l2] = (m.message || "").split("\n");
+    const i = l1.indexOf(": ");
+    return { frase: i >= 0 ? l1.slice(i + 2) : l1, sobre: (l2 || "").trim() };
+  };
+  // coração: 'Zizinho mandou um coração', às vezes com ' · aqui 21°' no fim
+  const extraCoracao = (m) => { const i = (m.message || "").indexOf(" · "); return i >= 0 ? m.message.slice(i) : ""; };
   const ehFoto = (m) => !!(m.attachment && (m.attachment.type || "").startsWith("image/"));
   const ehCarta = (m) => !!(m.attachment && m.attachment.name === "attachment.txt"
     && (m.attachment.type || "").startsWith("text/") && daNtfy(m.attachment.url));
@@ -303,15 +341,36 @@ textarea::placeholder { color: var(--muted); }
     const grudado = forcar || c.scrollHeight - c.scrollTop - c.clientHeight < 80;
     const todas = [...msgs.values()].sort((a, b) => a.time - b.time || (a.id < b.id ? -1 : 1));
     const vistos = todas.filter(ehVisto);
-    const recados = todas.filter((m) => !ehVisto(m));
-    const vistoDe = casarVistos(recados, vistos);
+    const itens = todas.filter((m) => !ehVisto(m));
+    const vistoDe = casarVistos(itens.filter((m) => !ehGesto(m)), vistos);
     c.replaceChildren();
-    if (!recados.length) { preencherVazio(); c.append(vazio); }
+    if (!itens.length) { preencherVazio(); c.append(vazio); }
     let diaAnterior = "";
-    for (const m of recados) {
+    for (const m of itens) {
       const d = diaTxt(m.time);
       if (d !== diaAnterior) {
         const el = document.createElement("div"); el.className = "dia"; el.textContent = d; c.append(el); diaAnterior = d;
+      }
+      if (ehCarinho(m) || ehCoracao(m)) {
+        const g = document.createElement("div");
+        const dele = ehCoracao(m);
+        g.className = "gesto" + (dele ? " dele" : "") + (m.enviando ? " enviando" : "");
+        const txt = dele ? "Ele mandou um coração" + extraCoracao(m) : "Você pensou nele";
+        g.innerHTML = coracao + '<span><span></span> <span class="hora"></span></span>';
+        g.children[1].children[0].textContent = txt;
+        g.children[1].children[1].textContent = m.enviando ? "· enviando..." : "· " + hora(m.time);
+        c.append(g);
+        continue;
+      }
+      if (ehResposta(m)) {
+        const { frase, sobre } = resposta(m);
+        const r = document.createElement("div"); r.className = "recado outro";
+        const rot = document.createElement("div"); rot.className = "rotulo"; rot.textContent = "Ele respondeu";
+        const b = document.createElement("div"); b.className = "balao"; b.textContent = frase;
+        const meta = document.createElement("div"); meta.className = "meta";
+        meta.textContent = hora(m.time) + (sobre ? " · sobre " + sobre : "");
+        r.append(rot, b, meta); c.append(r);
+        continue;
       }
       const minha = ehDela(m);
       const r = document.createElement("div");
@@ -374,19 +433,23 @@ textarea::placeholder { color: var(--muted); }
     } catch (e) { semConexao(); return; }
     let mudou = carga !== "ok";
     carga = "ok";
+    const chegaram = [];
     for (const l of corpo.split("\n")) {
       if (!l.trim()) continue;
       let m; try { m = JSON.parse(l); } catch (e) { continue; }
       if (m.event !== "message" || !m.id) continue;
-      if (!msgs.has(m.id)) { msgs.set(m.id, m); mudou = true; }
+      if (!msgs.has(m.id)) { msgs.set(m.id, m); mudou = true; chegaram.push(m); }
       ultimoId = m.id;
     }
-    const vistos = [...msgs.values()].filter(ehVisto);
-    if (vistosConhecidos >= 0 && vistos.length > vistosConhecidos) {
-      const ult = vistos.reduce((a, b) => (b.time > a.time ? b : a));
-      avisar("Ele viu seu recado às " + hora(ult.time));
-    }
-    vistosConhecidos = vistos.length;
+    // aviso só do que é dele e chegou com a página aberta; o mais recente vale
+    if (conhecidos) {
+      const dele = chegaram.filter((m) => tem(m, "presto") && !conhecidos.has(m.id));
+      const ult = dele.sort((a, b) => a.time - b.time)[dele.length - 1];
+      if (ult && ehResposta(ult)) avisar("Ele respondeu: " + resposta(ult).frase);
+      else if (ult && ehCoracao(ult)) avisar("Ele mandou um coração");
+      else if (ult) avisar("Ele viu seu recado às " + hora(ult.time));
+    } else conhecidos = new Set(msgs.keys());
+    for (const m of chegaram) conhecidos.add(m.id);
     if (mudou) desenhar();
   }
 
@@ -567,6 +630,49 @@ textarea::placeholder { color: var(--muted); }
     } finally {
       enviando = false; $("enviar").textContent = "Enviar"; atualizarBotao();
       requestAnimationFrame(crescer);
+    }
+  });
+
+  // ---- "Pensando em você": sai na hora, sem texto. No Presto acende a luz rosa, que vai
+  // apagando em 1h30; não pede visto.
+  $("carinho").addEventListener("click", async () => {
+    if (enviandoCarinho) return;
+    if (Date.now() - ultimoCarinho < CARINHO_MS) { avisar("Espera um pouquinho pra mandar outro."); return; }
+    enviandoCarinho = true; $("carinho").disabled = true; $("carinho").setAttribute("aria-busy", "true");
+    const temp = { id: "local-c-" + Date.now(), time: Math.floor(Date.now() / 1000), message: CORPO_CARINHO,
+      enviando: true, local: true, tags: [TAG, CARINHO] };
+    msgs.set(temp.id, temp); desenhar(true);
+    const ok = "Enviado · se a telinha estiver ligada, a luz dele acende em até 20 segundos";
+    try {
+      let r;
+      try {
+        r = await fetch(URL_CANAL + "?tags=" + TAG + "," + CARINHO, { method: "POST", body: CORPO_CARINHO });
+      } catch (e) {
+        // mesma conferência do recado: a rede pode ter caído só na volta
+        msgs.delete(temp.id);
+        let foi = false;
+        for (let i = 0; i < 3 && !foi; i++) {
+          await new Promise((fim) => setTimeout(fim, 1200));
+          await buscar(true);
+          foi = [...msgs.values()].some((m) => !m.local && ehCarinho(m) && m.time >= temp.time - 5);
+        }
+        desenhar();
+        if (foi) { ultimoCarinho = Date.now(); avisar(ok); }
+        else avisar("Não deu pra confirmar o carinho. Confere a conversa antes de mandar de novo.", true);
+        return;
+      }
+      msgs.delete(temp.id);
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        desenhar(); avisar(motivo(r.status, j.code), true);
+        return;
+      }
+      const m = await r.json().catch(() => null);
+      if (m && m.id) msgs.set(m.id, m);
+      ultimoCarinho = Date.now();
+      desenhar(true); avisar(ok);
+    } finally {
+      enviandoCarinho = false; $("carinho").disabled = false; $("carinho").removeAttribute("aria-busy");
     }
   });
 
